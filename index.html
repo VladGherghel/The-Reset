@@ -372,7 +372,9 @@
     </div>
     <div class="macro-form">
       <input type="number" id="proteinInput" placeholder="Protein (g)" step="1">
+      <button id="proteinSave">Log</button>
       <input type="number" id="carbsInput" placeholder="Carbs (g)" step="1">
+      <button id="carbsSave">Log</button>
     </div>
     <div class="habit-note" id="calToday" style="margin-top:6px; font-weight:600; color:var(--paper);"></div>
     <div class="habit-note" id="macroToday" style="margin-top:2px;"></div>
@@ -556,8 +558,8 @@
   const WATER_MID = 2000;
   const WATER_MIN = 1500;
   const WATER_GOAL = 3000;
-  const PROTEIN_GOAL = 140;
-  const CARB_GOAL = 440;
+  const PROTEIN_GOAL = 150;
+  const CARB_GOAL = 250;
   // Water tracking was just added — don't retroactively penalize the day it
   // was introduced, since it wasn't something Vlad could have known to hit yet.
   const WATER_START_DATE = '2026-09-18';
@@ -1236,7 +1238,7 @@
       const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const hasMacros = entry.protein || entry.carbs;
       const macroText = hasMacros ? ' (P ' + (entry.protein || 0) + 'g / C ' + (entry.carbs || 0) + 'g)' : '';
-      div.innerHTML = label + ' — <span>+' + entry.value + ' kcal</span>' + macroText;
+      div.innerHTML = label + ' — ' + (entry.value ? '<span>+' + entry.value + ' kcal</span>' : '<span>macros only</span>') + macroText;
       log.appendChild(div);
     });
   }
@@ -1419,13 +1421,36 @@
    }
   });
 
-  // Enter in any of the three calorie fields submits the same as tapping Log.
-  ['calInput', 'proteinInput', 'carbsInput'].forEach(id => {
-    document.getElementById(id).addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        document.getElementById('calSave').click();
-      }
+  // Log protein or carbs on their own (no calories needed).
+  function logMacro(inputId, field) {
+    try {
+      const val = parseInt(document.getElementById(inputId).value, 10);
+      if (!val) return;
+      if (!state.calLog) state.calLog = [];
+      const entry = { date: today, value: 0, protein: 0, carbs: 0 };
+      entry[field] = val;
+      state.calLog.push(entry);
+      save(state);
+      document.getElementById(inputId).value = '';
+      renderAll();
+    } catch (err) {
+      document.getElementById('calToday').textContent = 'Error: ' + (err && err.message ? err.message : err);
+    }
+  }
+  document.getElementById('proteinSave').addEventListener('click', () => logMacro('proteinInput', 'protein'));
+  document.getElementById('carbsSave').addEventListener('click', () => logMacro('carbsInput', 'carbs'));
+
+  // Enter: calories field always submits the meal. In protein/carbs, Enter logs
+  // that macro alone — unless calories are typed, then it submits the whole meal.
+  document.getElementById('calInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('calSave').click(); }
+  });
+  [['proteinInput', 'proteinSave'], ['carbsInput', 'carbsSave']].forEach(([inp, btn]) => {
+    document.getElementById(inp).addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const hasCal = parseInt(document.getElementById('calInput').value, 10);
+      document.getElementById(hasCal ? 'calSave' : btn).click();
     });
   });
 
